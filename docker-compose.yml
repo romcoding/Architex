@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # Frontend - React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8001
+    depends_on:
+      - api-gateway
+      - collaboration-engine
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api-gateway:/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saplatform
+      - REDIS_URL=redis://redis:6379
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - neo4j
+
+  # AI Oracle Service
+  ai-oracle:
+    build:
+      context: ./services/ai-oracle
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./services/ai-oracle:/app
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - neo4j
+      - redis
+
+  # Knowledge Hub Service
+  knowledge-hub:
+    build:
+      context: ./services/knowledge-hub
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./services/knowledge-hub:/app
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - neo4j
+      - redis
+
+  # Collaboration Engine
+  collaboration-engine:
+    build:
+      context: ./services/collaboration-engine
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./services/collaboration-engine:/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saplatform
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+  # Integration Layer
+  integration-layer:
+    build:
+      context: ./services/integration-layer
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8004:8000"
+    volumes:
+      - ./services/integration-layer:/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saplatform
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=saplatform
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Neo4j Graph Database
+  neo4j:
+    image: neo4j:5
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+
+volumes:
+  postgres_data:
+  redis_data:
+  neo4j_data:
+  neo4j_logs:
